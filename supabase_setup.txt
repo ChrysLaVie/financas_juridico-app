@@ -1,0 +1,67 @@
+-- Execute este SQL no Supabase → SQL Editor → New query
+-- Rode tudo de uma vez
+
+-- 1. Tabela de meses financeiros
+create table if not exists public.meses (
+  id         uuid default gen_random_uuid() primary key,
+  user_id    uuid references auth.users(id) on delete cascade not null,
+  mes        text not null,
+  dados      jsonb not null default '{}',
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique(user_id, mes)
+);
+
+-- 2. Tabela de processos judiciais
+create table if not exists public.processos (
+  id                  uuid default gen_random_uuid() primary key,
+  user_id             uuid references auth.users(id) on delete cascade not null,
+  numero              text not null,
+  titulo              text,
+  tipo                text,
+  parte               text,
+  advogado            text,
+  status              text default 'Em andamento',
+  fase                text,
+  portal              text,
+  login_acesso        text,
+  senha_acesso        text,
+  ultima_notif_data   date,
+  proxima_data        date,
+  valor               numeric,
+  ultima_movimentacao text,
+  observacoes         text,
+  created_at          timestamptz default now(),
+  updated_at          timestamptz default now()
+);
+
+-- 3. Trigger updated_at
+create or replace function update_updated_at()
+returns trigger as $$
+begin new.updated_at = now(); return new; end;
+$$ language plpgsql;
+
+create trigger meses_updated_at before update on public.meses
+  for each row execute function update_updated_at();
+
+create trigger processos_updated_at before update on public.processos
+  for each row execute function update_updated_at();
+
+-- 4. Row Level Security — meses
+alter table public.meses enable row level security;
+create policy "meses_select" on public.meses for select using (auth.uid()=user_id);
+create policy "meses_insert" on public.meses for insert with check (auth.uid()=user_id);
+create policy "meses_update" on public.meses for update using (auth.uid()=user_id);
+create policy "meses_delete" on public.meses for delete using (auth.uid()=user_id);
+
+-- 5. Row Level Security — processos
+alter table public.processos enable row level security;
+create policy "processos_select" on public.processos for select using (auth.uid()=user_id);
+create policy "processos_insert" on public.processos for insert with check (auth.uid()=user_id);
+create policy "processos_update" on public.processos for update using (auth.uid()=user_id);
+create policy "processos_delete" on public.processos for delete using (auth.uid()=user_id);
+
+-- 6. Índices
+create index if not exists meses_idx on public.meses(user_id, mes);
+create index if not exists processos_idx on public.processos(user_id);
+create index if not exists processos_prazo_idx on public.processos(proxima_data);
